@@ -12,6 +12,7 @@ A Python script that automatically downloads all attachments from a Trello board
 - 🔐 **Automatic Cookie Authentication** - Automatically detects Trello cookies from Chrome/Firefox
 - 📂 **Organized Structure** - Creates folders matching your Trello board structure (Lists)
 - 🏷️ **Smart File Naming** - Names files as `CardName_AttachmentName` for easy identification
+ - 🏷️ **Smart File Naming** - Names files as `BoardName-CardName-OriginalFileName` (uses hyphens)
 - 📦 **Auto-Zipping** - Packages everything into a ZIP file and cleans up
 - 🍪 **Fallback Support** - Manual cookie configuration if auto-detection fails
 - 🚀 **Batch Processing** - Downloads all attachments in one go
@@ -39,21 +40,24 @@ A Python script that automatically downloads all attachments from a Trello board
 3. Save the `.json` file
 
 ### 2️⃣ Setup
-
-1. Place the exported JSON file into the `TrelloJsonExport/` folder
-2. Rename it to `import_export.json`
+1. Create an `Input/` folder next to the script and place the exported JSON there
+2. Rename the file to `import_export.json` (so the path is `Input/import_export.json`)
+3. The script will create an `Output/` folder next to the script for results
 
 ### 3️⃣ Configure Cookies (Optional)
 
 If automatic cookie detection fails, manually add your Trello cookies in `trello_exporter.py`:
+Instead of editing the script, you can create a `.env` file next to `trello_exporter.py` or copy `.sample.env` to `.env` and fill the values.
 
-```python
-MANUAL_COOKIES = {
-    "cloud.session.token": "YOUR_TOKEN_HERE",
-    "aaId": "YOUR_AAID_HERE",
-    "idMember": "YOUR_MEMBER_ID_HERE",
-    "atl-bsc-consent-token": "YOUR_CONSENT_TOKEN_HERE",
-}
+Example `.sample.env` entries (copy to `.env` and edit):
+
+```env
+# Trello cookie values (example keys)
+cloud.session.token=YOUR_TOKEN_HERE
+dsc=YOUR_DSC_TOKEN
+aaId=YOUR_AAID_HERE
+idMember=YOUR_MEMBER_ID_HERE
+atl-bsc-consent-token=YOUR_CONSENT_TOKEN_HERE
 ```
 
 **How to get cookies:**
@@ -83,9 +87,9 @@ Output/
 └── BoardName.zip
     └── BoardName/
         ├── List 1/
-        │   ├── CardName1_Attachment1.pdf
-        │   ├── CardName1_Attachment2.jpg
-        │   └── CardName2_Document.docx
+        │   ├── BoardName-CardName1-Attachment1.pdf
+        │   ├── BoardName-CardName1-Attachment2.jpg
+        │   └── BoardName-CardName2-Document.docx
         ├── List 2/
         │   ├── CardName3_Image.png
         │   └── CardName3_Spreadsheet.xlsx
@@ -98,6 +102,7 @@ Output/
 - **Board Folder**: Contains all lists from your board
 - **List Folders**: One folder for each Trello list
 - **Files**: Named as `CardName_OriginalFileName` for easy identification
+ - **Files**: Named as `BoardName-CardName-OriginalFileName` (hyphen-separated)
 
 ---
 

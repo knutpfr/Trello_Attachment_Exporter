@@ -9,18 +9,54 @@ import shutil
 
 # Konfiguration - Pfade relativ zum Skript-Verzeichnis
 SCRIPT_DIR = Path(__file__).parent
-INPUT_FILE = SCRIPT_DIR / "import_export.json"
+INPUT_FOLDER = SCRIPT_DIR / "Input"
+INPUT_FILE = INPUT_FOLDER / "import_export.json"
 OUTPUT_FOLDER = SCRIPT_DIR / "Output"
 
 # 🍪 MANUELLE COOKIES - optional
-# Wenn Browser-Autodetect nicht funktioniert, hier eintragen
-MANUAL_COOKIES = {
-    "cloud.session.token": "YOUR_TOKEN_HERE",
-    "dsc": "YOUR_TOKEN_HERE",
-    "aaId": "YOUR_TOKEN_HERE",
-    "idMember": "YOUR_TOKEN_HERE",
-    "atl-bsc-consent-token": "YOUR_TOKEN_HERE",
-}
+# Wird aus .env geladen, falls vorhanden. Standard leer.
+MANUAL_COOKIES = {}
+
+
+def load_dotenv(dotenv_path=None):
+    """
+    Einfache .env-Implementierung: liest KEY=VALUE Zeilen.
+    Nur bestimmte Schlüssel werden als manuelle Cookies übernommen.
+    """
+    global MANUAL_COOKIES
+    if dotenv_path is None:
+        dotenv_path = SCRIPT_DIR / '.env'
+
+    dotenv_path = Path(dotenv_path)
+    if not dotenv_path.exists():
+        return
+
+    try:
+        with open(dotenv_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#') or '=' not in line:
+                    continue
+                key, val = line.split('=', 1)
+                key = key.strip()
+                val = val.strip().strip('"').strip("'")
+                if key in ("cloud.session.token", "dsc", "aaId", "idMember", "atl-bsc-consent-token"):
+                    MANUAL_COOKIES[key] = val
+    except Exception:
+        pass
+
+
+def sanitize_name(name: str):
+    """Sanitize für Ordner- und Dateinamen: erlaubt alnum, Punkt, Unterstrich und Bindestrich."""
+    if not isinstance(name, str):
+        name = str(name)
+    # Erlaube alnum, space, dot, dash, underscore
+    cleaned = "".join(c for c in name if c.isalnum() or c in (' ', '.', '-', '_'))
+    # Räume Doppelleerzeichen weg und ersetze führende/trailing spaces
+    cleaned = cleaned.strip()
+    # Ersetze Spaces durch Bindestriche für bessere Dateinamen
+    cleaned = cleaned.replace(' ', '-')
+    return cleaned
 
 
 # Browser-Cookies auslesen
@@ -101,7 +137,8 @@ def create_folder_structure(board_name):
     """
     Erstelle die Ordnerstruktur für Output/BoardName/
     """
-    board_path = Path(OUTPUT_FOLDER) / board_name
+    safe_board = sanitize_name(board_name)
+    board_path = Path(OUTPUT_FOLDER) / safe_board
     board_path.mkdir(parents=True, exist_ok=True)
     print(f"✓ Board-Ordner erstellt: {board_path}")
     return board_path
@@ -115,7 +152,8 @@ def create_list_folders(board_path, lists):
     for list_obj in lists:
         list_name = list_obj['name']
         list_id = list_obj['id']
-        list_path = board_path / list_name
+        safe_list = sanitize_name(list_name)
+        list_path = board_path / safe_list
         list_path.mkdir(parents=True, exist_ok=True)
         list_paths[list_id] = list_path
         print(f"  ✓ Liste-Ordner erstellt: {list_path}")
@@ -148,7 +186,7 @@ def download_file(url, save_path, cookies):
         return False
 
 
-def process_card_attachments(card, list_path, cookies):
+def process_card_attachments(card, list_path, cookies, board_name):
     """
     Verarbeite alle Attachments einer Karte
     """
@@ -162,13 +200,13 @@ def process_card_attachments(card, list_path, cookies):
     for attachment in attachments:
         url = attachment['url']
         file_name = attachment['name']
-        
-        # Erstelle neuen Dateinamen: KartenName_OriginalName
-        new_file_name = f"{card_name}_{file_name}"
-        
-        # Sanitize Filename
-        new_file_name = "".join(c for c in new_file_name if c.isalnum() or c in (' ', '.', '-', '_'))
-        
+
+        # Erstelle neuen Dateinamen: BoardName-CardName-OriginalName
+        new_file_name = f"{board_name}-{card_name}-{file_name}"
+
+        # Sanitize Filename und ersetze Spaces durch Bindestriche
+        new_file_name = sanitize_name(new_file_name)
+
         file_path = list_path / new_file_name
         
         print(f"    ↓ {new_file_name}... ", end="", flush=True)
@@ -225,6 +263,9 @@ def main():
     
     # Cookies laden
     print("\n🔐 Authentifizierung:")
+    # Lade .env bevor Browser-Cookies geprüft werden (falls MANUAL_COOKIES darin gesetzt)
+    load_dotenv()
+
     cookies = get_browser_cookies()
     
     # Falls keine Cookies gefunden, nutze manuelle
@@ -239,6 +280,10 @@ def main():
         print("   3. ODER: Manuelle Cookies in Zeile 18 eintragen")
         exit(1)
     
+    # Stelle sicher, dass Input/Output Ordner existieren
+    Path(INPUT_FOLDER).mkdir(parents=True, exist_ok=True)
+    Path(OUTPUT_FOLDER).mkdir(parents=True, exist_ok=True)
+
     # 1. Laden
     print("\n📂 Lade Trello Export...")
     trello_data = load_trello_export(INPUT_FILE)
@@ -271,7 +316,7 @@ def main():
         list_path = list_paths[list_id]
         print(f"  Karte: {card_name}")
         
-        downloads = process_card_attachments(card, list_path, cookies)
+        downloads = process_card_attachments(card, list_path, cookies, board_name)
         total_downloads += downloads
     
     # 4. ZIP-Archiv erstellen
